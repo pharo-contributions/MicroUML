@@ -57,97 +57,6 @@ MicroUMLRoassalBuilder >> attachInteraction: aRSShape [
 				aRSShape @ interaction ] ]
 ]
 
-{ #category : 'instance creation' }
-MicroUMLRoassalBuilder >> basicNewClassBoxFor: aMicroUMLClassNode [
-
-	| color myLabel attributeShapes methodShapes memberShapes rect y1 y2 |
-	color := self colorFor: aMicroUMLClassNode.
-	myLabel := Array streamContents: [ :stream |
-			           | label |
-			           aMicroUMLClassNode keywordsDo: [ :keyword |
-					           stream nextPut: (RSLabel new
-							            text: '<<' , keyword , '>>';
-							            color: Color darkGray) ].
-			           label := RSLabel new
-				                    text: aMicroUMLClassNode name;
-				                    color: color.
-			           aMicroUMLClassNode isAbstract ifTrue: [ label italic ].
-			           stream nextPut: label ].
-	RSVerticalLineLayout new
-		alignCenter;
-		on: myLabel.
-	myLabel := myLabel asShape.
-	myLabel extent x < 100 ifTrue: [
-		myLabel extent: 100 @ myLabel extent y ].
-	aMicroUMLClassNode isEmptyDefinition
-		ifTrue: [
-				^ {
-					  (RSBox new
-						   extent: myLabel extent + (10 @ 6);
-						   position: myLabel position;
-						   color: Color white;
-						   borderColor: color;
-						   borderWidth: 1).
-					  myLabel } asShapeFor: aMicroUMLClassNode ]
-		ifFalse: [
-				attributeShapes := aMicroUMLClassNode attributesCollect: [
-					                   :attribute |
-					                   self newMemberLabelFor: attribute ].
-				RSVerticalLineLayout new
-					alignLeft;
-					on: attributeShapes.
-				attributeShapes := attributeShapes asShape.
-
-
-				methodShapes := aMicroUMLClassNode methodsCollect: [ :method |
-					                self newMemberLabelFor: method ].
-				RSVerticalLineLayout new
-					alignLeft;
-					on: methodShapes.
-				methodShapes := methodShapes asShape.
-
-				RSVerticalLineLayout new
-					alignLeft;
-					gapSize: 10;
-					on: {
-							attributeShapes.
-							methodShapes }.
-				memberShapes := {
-					                attributeShapes.
-					                methodShapes } asShape.
-
-				myLabel extent x < memberShapes extent x ifTrue: [
-					myLabel extent: memberShapes extent x @ myLabel extent y ].
-				RSVerticalLineLayout new
-					alignLeft;
-					gapSize: 10;
-					on: {
-							myLabel.
-							memberShapes }.
-				rect := {
-					        myLabel.
-					        memberShapes } asShape encompassingRectangle.
-				y1 := myLabel encompassingRectangle bottom + 5.
-				y2 := y1 + attributeShapes encompassingRectangle height + 10.
-
-				^ {
-					  (RSBox new
-						   extent: rect extent + (10 @ 6);
-						   color: Color white;
-						   borderColor: color;
-						   borderWidth: 1).
-					  (RSLine new
-						   startPoint: rect extent x / -2 - 5 @ y1;
-						   endPoint: rect extent x / 2 + 5 @ y1;
-						   color: color).
-					  (RSLine new
-						   startPoint: rect extent x / -2 - 5 @ y2;
-						   endPoint: rect extent x / 2 + 5 @ y2;
-						   color: color).
-					  myLabel.
-					  memberShapes } asShapeFor: aMicroUMLClassNode ]
-]
-
 { #category : 'accessing' }
 MicroUMLRoassalBuilder >> classDiagramNode [
 
@@ -227,12 +136,22 @@ MicroUMLRoassalBuilder >> initialize [
 ]
 
 { #category : 'instance creation' }
+MicroUMLRoassalBuilder >> newAttributeCompartmentFor: aMicroUMLClassNode [
+
+	shapes := aMicroUMLClassNode attributesCollect: [ :attribute |
+		          self newMemberLabelFor: attribute ].
+	RSVerticalLineLayout new
+		alignLeft;
+		on: shapes.
+	^ shapes asShape
+]
+
+{ #category : 'instance creation' }
 MicroUMLRoassalBuilder >> newClassBoxFor: aMicroUMLClassNode [
 
-	| box |
-	box := self basicNewClassBoxFor: aMicroUMLClassNode.
-	self attachInteraction: box.
-	^ box
+	^ aMicroUMLClassNode isEmptyDefinition
+		  ifTrue: [ self newNameOnlyClassBoxFor: aMicroUMLClassNode ]
+		  ifFalse: [ self newFullClassBoxFor: aMicroUMLClassNode ]
 ]
 
 { #category : 'instance creation' }
@@ -249,6 +168,59 @@ MicroUMLRoassalBuilder >> newEdgeFor: aMicroUMLAssociationNode [
 		          yourself.
 	aMicroUMLAssociationNode line = #dashed ifTrue: [ bazier dashed ].
 	^ bazier
+]
+
+{ #category : 'instance creation' }
+MicroUMLRoassalBuilder >> newFullClassBoxFor: aMicroUMLClassNode [
+
+	| color nameCompartment attributeCompartment methodCompartment width compartmentsAndDividers shape |
+	color := self colorFor: aMicroUMLClassNode.
+	nameCompartment := self
+		                   newNameCompartmentFor: aMicroUMLClassNode
+		                   color: color.
+	attributeCompartment := self newAttributeCompartmentFor:
+		                        aMicroUMLClassNode.
+	methodCompartment := self newMethodCompartmentFor: aMicroUMLClassNode.
+	width := ((nameCompartment width max: attributeCompartment width)
+		          max: methodCompartment width) + 10.
+	attributeCompartment children ifNotEmpty: [
+		width := width max: attributeCompartment width ].
+	compartmentsAndDividers := Array streamContents: [ :stream |
+			                           nameCompartment extent:
+				                           width @ nameCompartment height.
+			                           stream nextPut: nameCompartment.
+			                           stream nextPut: (RSLine new
+					                            startPoint: width / -2.0 @ 0.0;
+					                            endPoint: width / 2.0 @ 0.0;
+					                            color: color).
+			                           attributeCompartment children
+				                           ifNotEmpty: [
+						                           attributeCompartment extent:
+							                           attributeCompartment extent
+							                           + (10.0 @ 0.0).
+						                           stream nextPut: attributeCompartment ].
+			                           stream nextPut: (RSLine new
+					                            startPoint: width / -2.0 @ 0.0;
+					                            endPoint: width / 2.0 @ 0.0;
+					                            color: color).
+			                           methodCompartment children ifNotEmpty: [
+					                           methodCompartment extent:
+						                           methodCompartment extent
+						                           + (10.0 @ 0.0).
+					                           stream nextPut: methodCompartment ] ].
+	RSVerticalLineLayout new
+		alignLeft;
+		gapSize: 5;
+		on: compartmentsAndDividers.
+	shape := { (RSBox new
+		          extent:
+			          compartmentsAndDividers asShape extent + (0.0 @ 10.0);
+		          color: Color white;
+		          borderColor: color;
+		          borderWidth: 1) } , compartmentsAndDividers asShapeFor:
+		         aMicroUMLClassNode.
+	self attachInteraction: shape.
+	^ shape
 ]
 
 { #category : 'instance creation' }
@@ -349,6 +321,60 @@ MicroUMLRoassalBuilder >> newMemberLabelFor: aMicroUMLMemberNode [
 		label emphasis: TextEmphasis underlined ].
 	self attachInteraction: label.
 	^ label
+]
+
+{ #category : 'instance creation' }
+MicroUMLRoassalBuilder >> newMethodCompartmentFor: aMicroUMLClassNode [
+
+	shapes := aMicroUMLClassNode methodsCollect: [ :method |
+		          self newMemberLabelFor: method ].
+	RSVerticalLineLayout new
+		alignLeft;
+		on: shapes.
+	^ shapes asShape
+]
+
+{ #category : 'instance creation' }
+MicroUMLRoassalBuilder >> newNameCompartmentFor: aMicroUMLClassNode color: aColor [
+
+	| labels shape |
+	labels := Array streamContents: [ :stream |
+			          | label |
+			          aMicroUMLClassNode keywordsDo: [ :keyword |
+					          stream nextPut: (RSLabel new
+							           text: '<<' , keyword , '>>';
+							           color: Color darkGray) ].
+			          label := RSLabel new
+				                   text: aMicroUMLClassNode name;
+				                   color: aColor.
+			          aMicroUMLClassNode isAbstract ifTrue: [ label italic ].
+			          stream nextPut: label ].
+	RSVerticalLineLayout new
+		alignCenter;
+		on: labels.
+	shape := labels asShape.
+	shape extent x < 100 ifTrue: [ shape extent: 100 @ shape extent y ].
+	^ shape
+]
+
+{ #category : 'instance creation' }
+MicroUMLRoassalBuilder >> newNameOnlyClassBoxFor: aMicroUMLClassNode [
+
+	| color nameCompartment shape |
+	color := self colorFor: aMicroUMLClassNode.
+	nameCompartment := self
+		                   newNameCompartmentFor: aMicroUMLClassNode
+		                   color: color.
+	shape := {
+		         (RSBox new
+			          extent: nameCompartment extent + (10 @ 6);
+			          position: nameCompartment position;
+			          color: Color white;
+			          borderColor: color;
+			          borderWidth: 1).
+		         nameCompartment } asShapeFor: aMicroUMLClassNode.
+	self attachInteraction: shape.
+	^ shape
 ]
 
 { #category : 'private' }
